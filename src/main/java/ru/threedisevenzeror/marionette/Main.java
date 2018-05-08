@@ -45,15 +45,22 @@ public class Main {
     }
 
     private static List<Process> launchFceuxInstances() throws IOException {
-        int cpuCount = 1; //Runtime.getRuntime().availableProcessors();
+        int cpuCount = Runtime.getRuntime().availableProcessors();
         List<Process> processes = new ArrayList<>();
 
         for(int i = 0; i < cpuCount; i++) {
             int affinity = (int) Math.pow(2, i);
+
             Process process = launchFceuxWindows(new File(fceuxPath),
                     new File("E:\\Development\\IdeaProjects\\marionette\\src\\main\\lua\\client.lua"),
                     new File(fceuxPath + "\\smb.nes"),
                     affinity);
+
+            /*Process process = launchFceuxLinux(
+                    new File("/home/threedisevenzeror/Projects/Idea/MarioNette/src/main/lua/client.lua"),
+                    new File("/home/threedisevenzeror/Projects/Emu/Roms/Super Mario Bros (W) [!].nes"),
+                    affinity
+            );*/
 
             processes.add(process);
         }
@@ -67,6 +74,14 @@ public class Main {
         return processes;
     }
 
+    private static Process launchFceuxLinux(File luaPath, File romPath, int affinity) throws IOException {
+        return new ProcessBuilder("taskset", "0x" + Integer.toHexString(affinity).toUpperCase(),
+                "fceux",
+                    "--loadlua", luaPath.getPath(),
+                    romPath.getPath())
+                .start();
+    }
+
     private static Process launchFceuxWindows(File emulatorPath, File luaPath, File romPath, int affinity) throws IOException {
         return new ProcessBuilder("cmd", "/c",
                 "start",
@@ -74,7 +89,6 @@ public class Main {
                     "/wait",
                 "fceux",
                     "-lua", luaPath.getPath(),
-                    "-turbo", "1",
                     romPath.getPath())
                 .directory(emulatorPath)
                 .start();
