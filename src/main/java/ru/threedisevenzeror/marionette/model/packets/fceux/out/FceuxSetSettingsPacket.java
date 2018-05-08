@@ -1,4 +1,4 @@
-package ru.threedisevenzeror.marionette.model.packets.fceux;
+package ru.threedisevenzeror.marionette.model.packets.fceux.out;
 
 import ru.threedisevenzeror.marionette.model.fceux.EmulationSpeed;
 import ru.threedisevenzeror.marionette.model.packets.base.OutPacket;
@@ -6,13 +6,30 @@ import ru.threedisevenzeror.marionette.model.packets.base.OutPacket;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
-public class FceuxSetEmulationParams implements OutPacket {
+/**
+ * Packet with settings for FCEUX
+ */
+public class FceuxSetSettingsPacket implements OutPacket {
 
+    /**
+     * Emulation speed
+     */
     public EmulationSpeed emulationSpeed;
 
-    public FceuxSetEmulationParams(EmulationSpeed speed) {
-        emulationSpeed = speed;
-    }
+    /**
+     * Socket read-write timeout
+     */
+    public int socketTimeout;
+
+    /**
+     * How much time to run emulation, before checking for new packet
+     */
+    public int emulationPeriods;
+
+    /**
+     * Should debugging info be visible in emulator
+     */
+    public boolean debuggingInfo;
 
     @Override
     public void write(DataOutputStream stream) throws IOException {
@@ -27,6 +44,10 @@ public class FceuxSetEmulationParams implements OutPacket {
                 stream.writeByte(2);
                 break;
         }
+
+        stream.writeInt(socketTimeout);
+        stream.writeInt(emulationPeriods);
+        stream.writeByte(debuggingInfo ? 1 : 0);
     }
 
     @Override

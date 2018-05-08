@@ -173,11 +173,13 @@ function struct.unpack(format, stream)
     elseif opt == 's' then
       local bytes = {}
       for j = iterator, stream:len() do
-        if stream:sub(j, j) == string.char(0) then
+        local c = stream:sub(j, j)
+
+        if c == string.char(0) then
           break
         end
 
-        table.insert(bytes, stream:sub(j, j))
+        table.insert(bytes, c)
       end
 
       local str = table.concat(bytes)

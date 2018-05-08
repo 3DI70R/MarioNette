@@ -4,9 +4,7 @@ import ru.threedisevenzeror.marionette.model.neural.NeuralConfiguration;
 import ru.threedisevenzeror.marionette.model.neural.NeuralEvaluationResult;
 import ru.threedisevenzeror.marionette.logic.base.BaseNeuralEvaluator;
 import ru.threedisevenzeror.marionette.model.fceux.EmulationSpeed;
-import ru.threedisevenzeror.marionette.model.packets.fceux.FceuxEvaluateUntill;
-import ru.threedisevenzeror.marionette.model.packets.fceux.FceuxSetEmulationParams;
-import ru.threedisevenzeror.marionette.model.packets.fceux.FceuxWaitingForNewCommands;
+import ru.threedisevenzeror.marionette.model.packets.fceux.out.FceuxSetSettingsPacket;
 import ru.threedisevenzeror.marionette.network.messaging.base.MessageChannel;
 
 import java.util.List;
@@ -24,9 +22,9 @@ public class FceuxNeuralEvaluator extends BaseNeuralEvaluator {
 
         this.channel = channel;
 
-        setEvaluationPeriods(250, TimeUnit.MILLISECONDS);
+        /*setEvaluationPeriods(250, TimeUnit.MILLISECONDS);
         channel.addPacketListener(new FceuxWaitingForNewCommands(),
-                p -> channel.sendPacket(new FceuxEvaluateUntill(updateTime)));
+                p -> channel.sendPacket(new FceuxEvaluateUntill(updateTime)));*/
     }
 
     public void setEvaluationPeriods(long period, TimeUnit unit) {
@@ -34,7 +32,7 @@ public class FceuxNeuralEvaluator extends BaseNeuralEvaluator {
     }
 
     public void setEmulationSpeed(EmulationSpeed speed) {
-        channel.sendPacket(new FceuxSetEmulationParams(speed));
+        //channel.sendPacket(new FceuxSetSettingsPacket(speed));
     }
 
     @Override

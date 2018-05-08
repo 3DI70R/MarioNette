@@ -27,7 +27,7 @@ class MessageChannelImpl implements MessageChannel {
     private DataInputStream inStream;
     private DataOutputStream outStream;
     private ScheduledExecutorService messageThread;
-    private boolean isAlive;
+    private boolean isClosed;
     private String clientName;
     private String clientType;
 
@@ -38,7 +38,7 @@ class MessageChannelImpl implements MessageChannel {
         this.socket = socket;
         this.messageThread = messageThread;
 
-        isAlive = true;
+        isClosed = false;
 
         packetHandlers = new HashMap<>();
         channelClosedListener = new ArrayList<>();
@@ -70,7 +70,7 @@ class MessageChannelImpl implements MessageChannel {
             // noop
         }
 
-        isAlive = false;
+        isClosed = true;
 
         synchronized (channelClosedListener) {
             for (OnChannelClosedListener listener : channelClosedListener) {
@@ -84,7 +84,7 @@ class MessageChannelImpl implements MessageChannel {
     }
 
     boolean isAlive() {
-        return isAlive;
+        return !isClosed;
     }
 
     public void sendPacket(OutPacket packet) {
@@ -118,7 +118,7 @@ class MessageChannelImpl implements MessageChannel {
 
     void receivePacketIfAvailable() {
         try {
-            while (inStream.available() != 0) {
+            while (!isClosed && inStream.available() != 0) {
                 receivePacket();
             }
         } catch (IOException e) {
@@ -133,10 +133,8 @@ class MessageChannelImpl implements MessageChannel {
         if(handlers == null) {
             throw new IllegalArgumentException("Unknown packet with id: " + packetType);
         } else {
-            synchronized (handlers) {
-                for (PacketHandler h : handlers) {
-                    h.handlePacket(inStream);
-                }
+            for (PacketHandler h : handlers) {
+                h.handlePacket(inStream);
             }
         }
     }

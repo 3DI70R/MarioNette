@@ -19,7 +19,7 @@ public interface MessageChannel  {
     String getClientType();
 
     /**
-     * Disconnects from this channel
+     * Forcefully disconnects from this channel
      */
     void disconnect();
 

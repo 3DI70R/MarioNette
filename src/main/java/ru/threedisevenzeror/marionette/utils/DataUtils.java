@@ -1,6 +1,7 @@
 package ru.threedisevenzeror.marionette.utils;
 
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 
 public class DataUtils {
@@ -23,5 +24,13 @@ public class DataUtils {
         }
 
         return builder.toString();
+    }
+
+    /**
+     * Writes string with prefixed length
+     */
+    public static void writeNullTerminatedString(DataOutputStream stream, String value) throws IOException {
+        stream.writeBytes(value);
+        stream.writeByte(0);
     }
 }

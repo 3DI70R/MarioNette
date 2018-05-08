@@ -11,11 +11,24 @@ import java.io.IOException;
  */
 public class ClientInfo implements InPacket {
 
+    /**
+     * Protocol version of this client
+     */
+    public byte protocolVersion;
+
+    /**
+     * Name of this client
+     */
     public String clientName;
+
+    /**
+     * Type of this client
+     */
     public String clientType;
 
     @Override
     public void read(DataInputStream stream) throws IOException {
+        protocolVersion = stream.readByte();
         clientName = DataUtils.readNullTerminatedString(stream);
         clientType = DataUtils.readNullTerminatedString(stream);
     }
