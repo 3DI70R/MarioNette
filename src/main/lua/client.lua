@@ -6,11 +6,14 @@ struct = require("struct")
 local socketTimeout = 1000
 local emulationEvaluationPeriod = 500
 local emulationSpeed = "normal"
-local debuggingInfo = false
+local debuggingInfo = true
 
---- IO Utils ---------------------------
+--- Messaging utils ---------------------------
 
-function wrapConnectionAsStream(c)
+local currentMessageBufferId = 0x00
+local currentMessageBuffer = {}
+
+function mimicConnectionAsString(c)
     local result = {}
 
     function result.len(self)
@@ -25,34 +28,65 @@ function wrapConnectionAsStream(c)
     return result
 end
 
-function writeData(c, format, ...)
-    return c:send(struct.pack(format, ...))
+function readMessage(c, format)
+    return struct.unpack(format, mimicConnectionAsString(c))
 end
 
-function readData(c, format)
-    return struct.unpack(format, wrapConnectionAsStream(c))
+function beginMessage(func)
+    currentMessageBufferId = packetTable[func]
 end
 
-function writePacketId(c, func)
-    return writeData(c, ">b", outPacketTable[func])
+function writeMessage(format, ...)
+    table.insert(currentMessageBuffer, struct.pack(format, ...))
+end
+
+function writeRawMessage(value)
+    table.insert(currentMessageBuffer, value)
+end
+
+function sendMessage(c)
+    local resultMessage = table.concat(currentMessageBuffer)
+    local messageSize = resultMessage:len() + 1
+    local lengthPrefix = struct.pack(">iB",
+            messageSize,
+            currentMessageBufferId)
+
+    if debuggingInfo then
+        printSeparator()
+        local hexId = string.format("%x", currentMessageBufferId)
+        emu.print("Sent message [0x" .. hexId .. "] with size: " .. messageSize)
+    end
+
+    c:send(lengthPrefix)
+    c:send(resultMessage)
+    currentMessageBuffer = {}
 end
 
 function closeConnection(c, reason)
-    sendDisconnectedPacket(c, reason)
+    emu.print("Closing connection: " .. reason)
+    sendConnectionClosedMessage(c, reason)
     c:close()
+end
+
+function printSeparator()
+    emu.print("---------------------------")
 end
 
 --- Input message handlers -------------
 
-function pingPacketHandler(c)
-    sendPongPacket(c)
+function pingPongMessageHandler(c)
+    local sendPong = readMessage(c, "b")
+
+    if sendPong then
+        sendPingPongMessage(c)
+    end
 end
 
-function settingsPacketHandler(c)
+function setSettingsMessageHandler(c)
     local emulationSpeedData,
     socketTimeoutData,
     emulationEvaluationPeriodData,
-    debuggingInfoData = readData(c, ">biib")
+    debuggingInfoData = readMessage(c, ">biib")
 
     if emulationSpeedData == 1 then
         emulationSpeed = "nothrottle"
@@ -77,8 +111,8 @@ function settingsPacketHandler(c)
     emu.speedmode(emulationSpeed)
 end
 
-function showMessagePacketHandler(c)
-    local message, duration = readData(c, ">si")
+function showMessageMessageHandler(c)
+    local message, duration = readMessage(c, ">si")
     emu.message(message)
 
     if debuggingInfo then
@@ -86,40 +120,57 @@ function showMessagePacketHandler(c)
     end
 end
 
---- Output packet senders --------------
-
-function sendPongPacket(c)
-    writePacketId(c, sendPongPacket)
+function connectionClosedMessageHandler(c)
+    local reason = readMessage(c, ">s")
+    closeConnection(c, reason)
 end
 
-function sendDisconnectedPacket(c, reason)
-    writePacketId(c, sendDisconnectedPacket)
-    writeData(c, ">s", reason)
+--- Message senders -------------------
+
+function sendPingPongMessage(c)
+    beginMessage(sendPingPongMessage)
+    writeMessage("b", 0)
+    sendMessage(c)
 end
 
-function sendClientParamsPacket(c)
-    writePacketId(c, sendClientParamsPacket)
-    writeData(c, ">bss",
-            0x01,           -- protocol version
-            "FCEUX client",     -- client name
-            "fceux")            -- client type
+function sendConnectionClosedMessage(c, reason)
+    beginMessage(sendConnectionClosedMessage)
+    writeMessage(">s", reason)
+    sendMessage(c)
+end
+
+function sendClientParamsMessage(c)
+    beginMessage(sendClientParamsMessage)
+    writeMessage(">sss",
+            "prototype", -- protocol version
+            "FCEUX client [" .. c:getpeername() .. "]", -- client name
+            "fceux" -- client type
+    )
+    sendMessage(c)
+end
+
+function sendMemoryDump(c)
+    beginMessage(sendMemoryDump)
+    writeRawMessage(memory.readbyterange(0, 0x800))
+    sendMessage(c)
 end
 
 --- Packet -> Handler mapping ----------
 
-inPacketTable =
+packetTable =
 {
-    [0x00] = pingPacketHandler,
-    [0x01] = settingsPacketHandler,
-    [0x02] = showMessagePacketHandler
-}
+    [0x00] = setSettingsMessageHandler,
+    [0x01] = showMessageMessageHandler,
 
-outPacketTable =
-{
-    [sendPongPacket] = 0x00,
-    [sendDisconnectedPacket] = 0x01,
+    [sendMemoryDump] = 0x02,
 
-    [sendClientParamsPacket] = 0xff
+    [0xfc] = connectionClosedMessageHandler,
+    [sendConnectionClosedMessage] = 0xfc,
+
+    [0xfd] = pingPongMessageHandler,
+    [sendPingPongMessage] = 0xfd,
+
+    [sendClientParamsMessage] = 0xfe
 }
 
 --- Processing -------------------------
@@ -131,7 +182,10 @@ end
 function startNetworkConnectionLoop(host, port)
 
     while true do
-        local connection = socket.connect("localhost", 34710)
+        printSeparator()
+        emu.print("Trying to establish connection with " .. host .. ":" .. port .. "...")
+
+        local connection = socket.connect(host, port)
 
         if connection then
 
@@ -139,56 +193,68 @@ function startNetworkConnectionLoop(host, port)
                 closeConnection(connection, "Script evaluation on emulator was stopped")
             end)
 
-            sendClientParamsPacket(connection)
+            sendClientParamsMessage(connection)
             startNetworkPacketHandlerLoop(connection)
         else
-            emu.print("Cannot establish connection to " .. host .. ":" .. port ", retrying...")
-            emu.frameadvance()
+            emu.print("Cannot establish connection to " .. host .. ":" .. port .. ", retrying in 10 seconds...")
+            runForTime(10000, emu.frameadvance)
         end
     end
 end
 
 function startNetworkPacketHandlerLoop(c)
 
-    emu.print("Successfully connected to: " .. c:getsockname())
+    local name = c:getsockname();
+    emu.print("Successfully connected to: " .. name)
 
     while true do
         c:settimeout(0)
-        local packetId = c:receive(1)
+        local packetHeader, error = c:receive(5)
 
-        if packetId then
-            handlePacket(c, packetId)
+        if packetHeader then
+            handlePacket(c, packetHeader)
         else
-            evaluateEmulation(emulationEvaluationPeriod)
+            if error == "closed" then
+                break
+            else
+                evaluateEmulation(emulationEvaluationPeriod)
+            end
         end
     end
 end
 
-function handlePacket(c, packetId)
-    local packetType = struct.unpack("b", packetId)
-    local handler = inPacketTable[packetType]
+function handlePacket(c, packetHeader)
+    local packetSize, packetType = struct.unpack(">iB", packetHeader)
+    local handler = packetTable[packetType]
 
     if debuggingInfo then
-        emu.print("Received packet with id: " .. packetType)
+        local hexType = string.format("%x", packetType)
+        printSeparator()
+        emu.print("Received packet [0x" .. hexType .. "] with size " .. packetSize)
     end
 
     if handler then
         c:settimeout(socketTimeout)
         handler(c)
     else
-        emu.print("Unknown packet received: " .. packetType .. ", terminating connection")
-        closeConnection(c, "Unknown packet received")
+        closeConnection(c, "Unknown packet received (" .. packetType .. ")")
     end
 end
 
 function evaluateEmulation(time)
+    runForTime(0, function()
+        emu.frameadvance()
+        -- TODO: Actual neural loop logic
+    end)
+end
+
+function runForTime(time, func)
     local evaluateUntill = getTimeMilis() + time
     local runOnce = false
 
     while not runOnce or getTimeMilis() < evaluateUntill do
-        emu.frameadvance()
+        func()
         runOnce = true
-        -- TODO: Actual neural loop logic
     end
 end
 

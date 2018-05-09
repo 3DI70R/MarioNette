@@ -1,17 +1,27 @@
 package ru.threedisevenzeror.marionette;
 
-import ru.threedisevenzeror.marionette.model.fceux.EmulationSpeed;
-import ru.threedisevenzeror.marionette.model.packets.fceux.in.FceuxEmuDisconnectedPacket;
-import ru.threedisevenzeror.marionette.model.packets.fceux.out.FceuxSetSettingsPacket;
-import ru.threedisevenzeror.marionette.model.packets.fceux.out.FceuxShowMessagePacket;
-import ru.threedisevenzeror.marionette.network.messaging.MessageServer;
-import ru.threedisevenzeror.marionette.network.messaging.base.MessageChannel;
-import ru.threedisevenzeror.marionette.network.messaging.base.OnChannelClosedListener;
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.*;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.netty.handler.codec.LengthFieldPrepender;
+import io.netty.handler.timeout.IdleStateHandler;
+import ru.threedisevenzeror.marionette.model.fceux.FceuxEmulationSpeed;
+import ru.threedisevenzeror.marionette.model.packets.fceux.FceuxMemoryDump;
+import ru.threedisevenzeror.marionette.model.packets.fceux.FceuxSetSettingsMessage;
+import ru.threedisevenzeror.marionette.model.packets.fceux.FceuxShowMessageMessage;
+import ru.threedisevenzeror.marionette.model.packets.generic.ClientInfoMessage;
+import ru.threedisevenzeror.marionette.model.packets.generic.ConnectionClosedMessage;
+import ru.threedisevenzeror.marionette.model.packets.generic.PingPongMessage;
+import ru.threedisevenzeror.marionette.network.*;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 public class Main {
 
@@ -19,29 +29,66 @@ public class Main {
             "E:\\Consoles\\Nintentdo Entertainment System, Floppy Disk System\\Emulators\\Fceux";
 
     public static void main(String[] args) throws IOException, InterruptedException {
-        MessageServer server = new MessageServer(34710);
-        server.setClientListener(c -> {
 
-            FceuxSetSettingsPacket packet = new FceuxSetSettingsPacket();
-            packet.emulationPeriods = 1500;
-            packet.socketTimeout = 30000;
-            packet.emulationSpeed = EmulationSpeed.Nothrottle;
-            packet.debuggingInfo = true;
+        MessageMapping protocol = new MessageMapping();
+        protocol.registerPacket(0x00, FceuxSetSettingsMessage.class);
+        protocol.registerPacket(0x01, FceuxShowMessageMessage.class);
+        protocol.registerPacket(0x02, FceuxMemoryDump.class);
 
-            c.sendPacket(packet);
+        protocol.registerPacket(0xff, ClientInfoMessage.class);
+        protocol.registerPacket(0xfe, PingPongMessage.class);
+        protocol.registerPacket(0xfd, ConnectionClosedMessage.class);
 
-            c.addPacketListener(new FceuxEmuDisconnectedPacket(), p -> {
-                c.disconnect();
-                System.out.println(p.reason);
-            });
+        EventLoopGroup group = new NioEventLoopGroup();
+        ServerBootstrap serverBootstrap = new ServerBootstrap();
+        serverBootstrap.group(group);
+        serverBootstrap.childOption(ChannelOption.AUTO_READ, true);
+        serverBootstrap.channelFactory(NioServerSocketChannel::new);
 
-            c.sendPacket(new FceuxShowMessagePacket() {{
-                message = "Test message";
-            }});
+        serverBootstrap.childHandler(new ChannelInitializer<SocketChannel>() {
+            @Override
+            protected void initChannel(SocketChannel ch) throws Exception {
+                ch.pipeline().addLast(
+                        new IdleStateHandler(30, 30,30, TimeUnit.SECONDS),
+
+                        new LengthFieldBasedFrameDecoder(8192 * 1024,0,
+                                4, 0, 4),
+                        new MessageDecoder(protocol),
+
+                        new LengthFieldPrepender(4),
+                        new MessageEncoder(protocol),
+
+                        new MessageHandler()
+                                .addMessageHandler(FceuxMemoryDump.class, (context, p) -> {
+                                    System.out.println(p.ram.length);
+                                })
+                                .addMessageHandler(ClientInfoMessage.class, (context, packet) -> {
+                                    System.out.println("Client connected: " + packet.clientName);
+                                })
+                );
+
+                FceuxSetSettingsMessage m = new FceuxSetSettingsMessage();
+                m.emulationSpeed = FceuxEmulationSpeed.Maximum;
+                m.emulationPeriods = 1500;
+                m.socketTimeout = 10000;
+                m.showDebuggingInfo = true;
+                ch.writeAndFlush(m);
+
+                FceuxShowMessageMessage p = new FceuxShowMessageMessage();
+                p.message = "Test message";
+                p.displayTimeMiliseconds = 3200;
+                ch.writeAndFlush(p);
+            }
         });
 
-        server.startServer();
+        ChannelFuture bindChannel = serverBootstrap.bind(34710)
+                .sync();
+
         launchFceuxInstances();
+
+        bindChannel.channel()
+                .closeFuture()
+                .sync();
     }
 
     private static List<Process> launchFceuxInstances() throws IOException {

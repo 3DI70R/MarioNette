@@ -1,10 +1,7 @@
 package ru.threedisevenzeror.marionette.model.fceux;
 
-public enum EmulationSpeed {
-
+public enum FceuxEmulationSpeed {
     Normal,
-
     Nothrottle,
-
     Maximum
 }
