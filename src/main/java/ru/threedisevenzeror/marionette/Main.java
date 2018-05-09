@@ -35,9 +35,9 @@ public class Main {
         protocol.registerPacket(0x01, FceuxShowMessageMessage.class);
         protocol.registerPacket(0x02, FceuxMemoryDump.class);
 
-        protocol.registerPacket(0xff, ClientInfoMessage.class);
-        protocol.registerPacket(0xfe, PingPongMessage.class);
-        protocol.registerPacket(0xfd, ConnectionClosedMessage.class);
+        protocol.registerPacket(0xfe, ClientInfoMessage.class);
+        protocol.registerPacket(0xfd, PingPongMessage.class);
+        protocol.registerPacket(0xfc, ConnectionClosedMessage.class);
 
         EventLoopGroup group = new NioEventLoopGroup();
         ServerBootstrap serverBootstrap = new ServerBootstrap();
