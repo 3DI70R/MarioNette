@@ -28,7 +28,18 @@ public class MessageMapping {
     }
 
     public int getPacketId(Class<?> clazz) {
-        return classPacketMap.get(clazz);
+        Class<?> currentClass = clazz;
+        while (currentClass != null) {
+            Integer id = classPacketMap.get(clazz);
+
+            if(id != null) {
+                return id;
+            } else {
+                currentClass = currentClass.getSuperclass();
+            }
+        }
+
+        throw new IllegalArgumentException("Unknown packet class: " + clazz.getName());
     }
 
     public Class<?> getPacketClass(int id) {

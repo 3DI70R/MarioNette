@@ -42,9 +42,7 @@ public class Main {
         EventLoopGroup group = new NioEventLoopGroup();
         ServerBootstrap serverBootstrap = new ServerBootstrap();
         serverBootstrap.group(group);
-        serverBootstrap.childOption(ChannelOption.AUTO_READ, true);
         serverBootstrap.channelFactory(NioServerSocketChannel::new);
-
         serverBootstrap.childHandler(new ChannelInitializer<SocketChannel>() {
             @Override
             protected void initChannel(SocketChannel ch) throws Exception {
@@ -71,7 +69,7 @@ public class Main {
                 m.emulationSpeed = FceuxEmulationSpeed.Maximum;
                 m.emulationPeriods = 1500;
                 m.socketTimeout = 10000;
-                m.showDebuggingInfo = true;
+                m.showDebuggingInfo = false;
                 ch.writeAndFlush(m);
 
                 FceuxShowMessageMessage p = new FceuxShowMessageMessage();
@@ -81,7 +79,8 @@ public class Main {
             }
         });
 
-        ChannelFuture bindChannel = serverBootstrap.bind(34710)
+        ChannelFuture bindChannel = serverBootstrap
+                .bind(34710)
                 .sync();
 
         launchFceuxInstances();
@@ -92,7 +91,7 @@ public class Main {
     }
 
     private static List<Process> launchFceuxInstances() throws IOException {
-        int cpuCount = Runtime.getRuntime().availableProcessors();
+        int cpuCount = 1;//Runtime.getRuntime().availableProcessors();
         List<Process> processes = new ArrayList<>();
 
         for(int i = 0; i < cpuCount; i++) {

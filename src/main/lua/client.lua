@@ -6,7 +6,7 @@ struct = require("struct")
 local socketTimeout = 1000
 local emulationEvaluationPeriod = 500
 local emulationSpeed = "normal"
-local debuggingInfo = true
+local debuggingInfo = false
 
 --- Messaging utils ---------------------------
 
@@ -54,7 +54,8 @@ function sendMessage(c)
     if debuggingInfo then
         printSeparator()
         local hexId = string.format("%x", currentMessageBufferId)
-        emu.print("Sent message [0x" .. hexId .. "] with size: " .. messageSize)
+        local name = packetNames[currentMessageBufferId]
+        emu.print("Sent message [0x" .. hexId .. ", " .. name .. "] with size " .. messageSize)
     end
 
     c:send(lengthPrefix)
@@ -63,9 +64,9 @@ function sendMessage(c)
 end
 
 function closeConnection(c, reason)
-    emu.print("Closing connection: " .. reason)
     sendConnectionClosedMessage(c, reason)
     c:close()
+    emu.print("Closing connection: " .. reason)
 end
 
 function printSeparator()
@@ -116,7 +117,7 @@ function showMessageMessageHandler(c)
     emu.message(message)
 
     if debuggingInfo then
-        emu.print("Display message: " .. message .. " for " .. tostring(duration) .. " miliseconds")
+        emu.print("Display message: \"" .. message .. "\" for " .. tostring(duration) .. " miliseconds")
     end
 end
 
@@ -143,7 +144,7 @@ function sendClientParamsMessage(c)
     beginMessage(sendClientParamsMessage)
     writeMessage(">sss",
             "prototype", -- protocol version
-            "FCEUX client [" .. c:getpeername() .. "]", -- client name
+            "FCEUX client", -- client name
             "fceux" -- client type
     )
     sendMessage(c)
@@ -173,6 +174,16 @@ packetTable =
     [sendClientParamsMessage] = 0xfe
 }
 
+packetNames =
+{
+    [0x00] = "Set Settings",
+    [0x01] = "Show message",
+    [0x02] = "Send memory dump",
+    [0xfc] = "Connection closed",
+    [0xfd] = "Ping",
+    [0xfe] = "Handshake"
+}
+
 --- Processing -------------------------
 
 function getTimeMilis()
@@ -183,11 +194,15 @@ function startNetworkConnectionLoop(host, port)
 
     while true do
         printSeparator()
-        emu.print("Trying to establish connection with " .. host .. ":" .. port .. "...")
+
+        local addr = host .. ":" .. port
+        emu.print("Trying to establish connection with " .. addr .. "...")
 
         local connection = socket.connect(host, port)
 
         if connection then
+
+            emu.print("Successfully connected to: " .. addr)
 
             emu.registerexit(function()
                 closeConnection(connection, "Script evaluation on emulator was stopped")
@@ -203,10 +218,6 @@ function startNetworkConnectionLoop(host, port)
 end
 
 function startNetworkPacketHandlerLoop(c)
-
-    local name = c:getsockname();
-    emu.print("Successfully connected to: " .. name)
-
     while true do
         c:settimeout(0)
         local packetHeader, error = c:receive(5)
@@ -229,22 +240,23 @@ function handlePacket(c, packetHeader)
 
     if debuggingInfo then
         local hexType = string.format("%x", packetType)
+        local messageType = packetNames[packetType]
         printSeparator()
-        emu.print("Received packet [0x" .. hexType .. "] with size " .. packetSize)
+        emu.print("Received message [0x" .. hexType .. ", " .. messageType .. "] with size " .. packetSize)
     end
 
     if handler then
         c:settimeout(socketTimeout)
         handler(c)
     else
-        closeConnection(c, "Unknown packet received (" .. packetType .. ")")
+        closeConnection(c, "Unknown message received (" .. packetType .. ")")
     end
 end
 
 function evaluateEmulation(time)
-    runForTime(0, function()
+    runForTime(time, function()
         emu.frameadvance()
-        -- TODO: Actual neural loop logic
+        -- TODO: Actual neatevolve loop logic
     end)
 end
 
