@@ -98,7 +98,7 @@ public class Main {
             int affinity = (int) Math.pow(2, i);
 
             Process process = launchFceuxWindows(new File(fceuxPath),
-                    new File("E:\\Development\\IdeaProjects\\marionette\\src\\main\\lua\\client.lua"),
+                    new File("E:\\Development\\IdeaProjects\\marionette\\src\\main\\lua\\marionette.lua"),
                     new File(fceuxPath + "\\smb.nes"),
                     affinity);
 

@@ -3,7 +3,8 @@
 --- Created by Three.
 --- DateTime: 10.05.2018 10:40
 ---
-module("logic")
+
+local neural = require("neural")
 
 local environment = {}
 
@@ -32,12 +33,11 @@ function simulateFrame()
         local inputs = environment.getInputs()
 
         network:setInputs(inputs)
-        evaluateNetwork(network)
+        neural.evaluateNetwork(network)
         local outputs = network:getOutputs()
 
         environment.mapOutputs(outputs)
 
         emu.frameadvance()
     end
-
 end

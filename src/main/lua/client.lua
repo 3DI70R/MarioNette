@@ -1,36 +1,74 @@
 local socket = require("socket")
 local struct = require("struct")
-local logic = require("logic")
+local neural = require("neural")
+
+local client = {}
+
+--- Forward definition of module's locals
+
+local readMessage,
+beginMessage,
+writeMessage,
+writeRawMessage,
+sendMessage
+
+local pingPongMessageHandler,
+setSettingsMessageHandler,
+showMessageMessageHandler,
+acceptNewJobMessageHandler,
+connectionClosedMessageHandler
+
+local sendPingPongMessage,
+sendConnectionClosedMessage,
+sendClientParamsMessage,
+sendMemoryDump
+
+local packetTable,
+packetNames
+
+local getTimeMillis,
+startNetworkPacketHandlerLoop,
+handlePacket,
+runForTime,
+printSeparator
+
+local emptyHandler = {
+    onDisconnected = function (reason) end;
+    onNewJobAdded = function (jobs) end;
+    onFrameSimulation = emu.frameadvance;
+}
 
 --- Default settings -------------------
 
 local socketTimeout = 1000
 local emulationEvaluationPeriod = 500
 local emulationSpeed = "normal"
-local debuggingInfo = false
+local debuggingInfo = true
+local eventHandler = emptyHandler
 
 --- Messaging utils ---------------------------
 
 local currentMessageBufferId = 0x00
 local currentMessageBuffer = {}
+local connectionMimic = {} -- hacky way to disguise input connection as string
+                           -- So struct packing library can work with connection
 
-function mimicConnectionAsString(c)
-    local result = {}
+function connectionMimic.setConnection(self, c)
+    self.c = c
+end
 
-    function result.len(self)
-        return 1000000000
-    end
+function connectionMimic.len(self)
+    return 1000000000
+end
 
-    function result.sub(self, from, to)
-        local len = to - from + 1
-        return c:receive(len)
-    end
-
-    return result
+function connectionMimic.sub(self, from, to)
+    local len = to - from + 1
+    return self.c:receive(len)
 end
 
 function readMessage(c, format)
-    return struct.unpack(format, mimicConnectionAsString(c))
+    connectionMimic:setConnection(c)
+    return struct.unpack(format, connectionMimic)
 end
 
 function beginMessage(func)
@@ -64,10 +102,11 @@ function sendMessage(c)
     currentMessageBuffer = {}
 end
 
-function closeConnection(c, reason)
+function client.closeConnection(c, reason)
     sendConnectionClosedMessage(c, reason)
     c:close()
     emu.print("Closing connection: " .. reason)
+    eventHandler.onDisconnected(reason)
 end
 
 function printSeparator()
@@ -128,23 +167,24 @@ function acceptNewJobMessageHandler(c)
 
     for i = 1, jobCount do
         local generation, species, genome, neuronCount, linkCount = readMessage(c, ">iiiii")
-        local network = createNetworkDefinition(generation, species, genome, neuronCount)
+        local network = neural.createNetworkDefinition(generation, species, genome, neuronCount)
 
         for j = 1, linkCount do
             local from, to, weight = readMessage(c, ">iif")
-            local link = createLinkDefinition(from, to, weight)
+            local link = neural.createLinkDefinition(from, to, weight)
             table.insert(network.links, link)
         end
 
         table.insert(networks, network)
     end
 
-    onNewJobAdded(networks)
+    eventHandler.onNewJobAdded(networks)
 end
 
 function connectionClosedMessageHandler(c)
     local reason = readMessage(c, ">s")
-    closeConnection(c, reason)
+    client.closeConnection(c, reason)
+    eventHandler.onDisconnected(reason)
 end
 
 --- Message senders -------------------
@@ -207,11 +247,15 @@ packetNames =
 
 --- Processing -------------------------
 
-function getTimeMilis()
+function getTimeMillis()
     return socket.gettime() * 1000
 end
 
-function startNetworkConnectionLoop(host, port)
+function client.setCallbackHandlers(handler)
+    eventHandler = handler
+end
+
+function client.startNetworkConnectionLoop(host, port)
 
     while true do
         printSeparator()
@@ -226,7 +270,7 @@ function startNetworkConnectionLoop(host, port)
             emu.print("Successfully connected to: " .. addr)
 
             emu.registerexit(function()
-                closeConnection(connection, "Script evaluation on emulator was stopped")
+                client.closeConnection(connection, "Script evaluation on emulator was stopped")
             end)
 
             sendClientParamsMessage(connection)
@@ -249,7 +293,7 @@ function startNetworkPacketHandlerLoop(c)
             if error == "closed" then
                 break
             else
-                runForTime(emulationEvaluationPeriod, simulateFrame)
+                runForTime(emulationEvaluationPeriod, eventHandler.onFrameSimulation)
             end
         end
     end
@@ -270,15 +314,8 @@ function handlePacket(c, packetHeader)
         c:settimeout(socketTimeout)
         handler(c)
     else
-        closeConnection(c, "Unknown message received (" .. packetType .. ")")
+        client.closeConnection(c, "Unknown message received (" .. packetType .. ")")
     end
-end
-
-function evaluateEmulation(time)
-    runForTime(time, function()
-        emu.frameadvance()
-        -- TODO: Actual neatevolve loop logic
-    end)
 end
 
 function runForTime(time, func)
@@ -291,4 +328,4 @@ function runForTime(time, func)
     end
 end
 
-startNetworkConnectionLoop("localhost", 34710)
+return client
