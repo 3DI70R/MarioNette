@@ -1,9 +1,12 @@
 --- Work in progress environment template ---------------
+module("environment")
 
 environmentName = "Test environment"
 environmentVersion = "1.0.0"
+
 neuralNetworkInputCount = 64
 neuralNetworkOutputCount = 8
+neuralNetworkActivationFunction = activationSigmoid
 
 --- This function should return "Inputs" of neural network, values between -1 and 1
 --- These inputs will be feeded to neural network to calculate outputs

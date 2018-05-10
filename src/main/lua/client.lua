@@ -1,5 +1,6 @@
-socket = require("socket")
-struct = require("struct")
+local socket = require("socket")
+local struct = require("struct")
+local logic = require("logic")
 
 --- Default settings -------------------
 
@@ -117,8 +118,28 @@ function showMessageMessageHandler(c)
     emu.message(message)
 
     if debuggingInfo then
-        emu.print("Display message: \"" .. message .. "\" for " .. tostring(duration) .. " miliseconds")
+        emu.print("Display message: \"" .. message .. "\" for " .. tostring(duration) .. " milliseconds")
     end
+end
+
+function acceptNewJobMessageHandler(c)
+    local jobCount = readMessage(c, ">i")
+    local networks = {}
+
+    for i = 1, jobCount do
+        local generation, species, genome, neuronCount, linkCount = readMessage(c, ">iiiii")
+        local network = createNetworkDefinition(generation, species, genome, neuronCount)
+
+        for j = 1, linkCount do
+            local from, to, weight = readMessage(c, ">iif")
+            local link = createLinkDefinition(from, to, weight)
+            table.insert(network.links, link)
+        end
+
+        table.insert(networks, network)
+    end
+
+    onNewJobAdded(networks)
 end
 
 function connectionClosedMessageHandler(c)
@@ -228,7 +249,7 @@ function startNetworkPacketHandlerLoop(c)
             if error == "closed" then
                 break
             else
-                evaluateEmulation(emulationEvaluationPeriod)
+                runForTime(emulationEvaluationPeriod, simulateFrame)
             end
         end
     end
