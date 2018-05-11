@@ -8,16 +8,12 @@ local client = require("client")
 local logic = require("logic")
 local mario = require("environment_mario1")
 
-local logicHandlers = {
-    -- TODO: link logic to client
-}
-
 local netClientHandlers = {
-    onNewJobAdded = logic.addNetworks
+    onNewNetworksAdded = logic.addNetworks;
+    onFrameSimulation = logic.simulateFrame;
 }
 
 logic.setEnvironment(mario)
-logic.setCallbackHandlers(logicHandlers)
 client.setCallbackHandlers(netClientHandlers)
 
 client.startNetworkConnectionLoop("localhost", 34710)

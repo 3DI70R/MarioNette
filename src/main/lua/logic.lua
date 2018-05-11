@@ -5,24 +5,27 @@
 ---
 
 local neural = require("neural")
-local environment = require("environment_mario1")
 
 local logic = {}
 
-local emptyEventHandler = {
-    onProgressUpdate = function() end;
-}
-
-local eventHandler = emptyEventHandler
 local pendingNetworkList = {}
 local networkEvaluationResults = {}
-local network = nil
+local network
 local frameCounter = 0
+local environment
 
 function logic.addNetworks(networks)
     for i, n in pairs(networks) do
         table.insert(pendingNetworkList, n)
     end
+
+    if network == nil then
+        switchToNextNetwork()
+    end
+end
+
+function logic.setEnvironment(env)
+    environment = env
 end
 
 function switchToNextNetwork()
@@ -30,6 +33,7 @@ function switchToNextNetwork()
         local networkDefinition = pendingNetworkList[1]
         table.remove(pendingNetworkList, 1)
         network = neural.createNetwork(networkDefinition)
+        onEvaluationStarted()
     end
 end
 
@@ -37,15 +41,23 @@ function storeEvaluationResult(result)
     table.insert(networkEvaluationResults, result)
 end
 
-function onEvaluationFinished()
+function onEvaluationStarted()
+    environment.onSimulationReset()
+    frameCounter = 0
+end
 
+function onEvaluationFinished()
+    onEvaluationStarted()
 end
 
 function logic.simulateFrame()
 
     if network then
+        frameCounter = frameCounter + 1
         environment.onNewFrame(frameCounter)
         local state = environment.getEvaluationState(frameCounter)
+
+        gui.text(16, 16, state.fitness)
 
         if state.isRunFinished then
             onEvaluationFinished(state)

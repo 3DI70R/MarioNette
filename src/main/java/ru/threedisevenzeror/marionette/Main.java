@@ -1,21 +1,27 @@
 package ru.threedisevenzeror.marionette;
 
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.*;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.codec.LengthFieldPrepender;
 import io.netty.handler.timeout.IdleStateHandler;
-import ru.threedisevenzeror.marionette.model.fceux.FceuxEmulationSpeed;
+import ru.threedisevenzeror.marionette.model.neatevolve.NeuralNetworkDefinition;
+import ru.threedisevenzeror.marionette.model.packets.fceux.FceuxEvaluateNetwork;
 import ru.threedisevenzeror.marionette.model.packets.fceux.FceuxMemoryDump;
 import ru.threedisevenzeror.marionette.model.packets.fceux.FceuxSetSettingsMessage;
 import ru.threedisevenzeror.marionette.model.packets.fceux.FceuxShowMessageMessage;
 import ru.threedisevenzeror.marionette.model.packets.generic.ClientInfoMessage;
 import ru.threedisevenzeror.marionette.model.packets.generic.ConnectionClosedMessage;
 import ru.threedisevenzeror.marionette.model.packets.generic.PingPongMessage;
-import ru.threedisevenzeror.marionette.network.*;
+import ru.threedisevenzeror.marionette.network.MessageDecoder;
+import ru.threedisevenzeror.marionette.network.MessageEncoder;
+import ru.threedisevenzeror.marionette.network.MessageHandler;
+import ru.threedisevenzeror.marionette.network.MessageMapping;
 
 import java.io.File;
 import java.io.IOException;
@@ -34,6 +40,7 @@ public class Main {
         protocol.registerPacket(0x00, FceuxSetSettingsMessage.class);
         protocol.registerPacket(0x01, FceuxShowMessageMessage.class);
         protocol.registerPacket(0x02, FceuxMemoryDump.class);
+        protocol.registerPacket(0x03, FceuxEvaluateNetwork.class);
 
         protocol.registerPacket(0xfe, ClientInfoMessage.class);
         protocol.registerPacket(0xfd, PingPongMessage.class);
@@ -65,17 +72,15 @@ public class Main {
                                 })
                 );
 
-                FceuxSetSettingsMessage m = new FceuxSetSettingsMessage();
-                m.emulationSpeed = FceuxEmulationSpeed.Maximum;
-                m.emulationPeriods = 1500;
-                m.socketTimeout = 10000;
-                m.showDebuggingInfo = false;
-                ch.writeAndFlush(m);
+                NeuralNetworkDefinition def = new NeuralNetworkDefinition();
 
-                FceuxShowMessageMessage p = new FceuxShowMessageMessage();
-                p.message = "Test message";
-                p.displayTimeMiliseconds = 3200;
-                ch.writeAndFlush(p);
+                def.id = 1234;
+                def.description = "Test network";
+                def.neuronCount = 256;
+                def.inputCount = 169;
+                def.outputCount = 6;
+
+                ch.writeAndFlush(new FceuxEvaluateNetwork(def));
             }
         });
 

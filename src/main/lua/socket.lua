@@ -10,7 +10,6 @@
 local string = require("string")
 local math = require("math")
 local socket = require("socket.core")
-module("socket")
 
 -----------------------------------------------------------------------------
 -- Auxiliar functions
@@ -171,4 +170,4 @@ socket.sourcet["default"] = socket.sourcet["until-closed"]
 
 socket.source = socket.choose(socket.sourcet)
 
---getmetatable(_M).__index = nil
+return socket

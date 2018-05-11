@@ -15,7 +15,7 @@ sendMessage
 local pingPongMessageHandler,
 setSettingsMessageHandler,
 showMessageMessageHandler,
-acceptNewJobMessageHandler,
+evaluateNetworkMessageHandler,
 connectionClosedMessageHandler
 
 local sendPingPongMessage,
@@ -34,7 +34,7 @@ printSeparator
 
 local emptyHandler = {
     onDisconnected = function (reason) end;
-    onNewJobAdded = function (jobs) end;
+    onNewNetworksAdded = function (networks) end;
     onFrameSimulation = emu.frameadvance;
 }
 
@@ -106,7 +106,10 @@ function client.closeConnection(c, reason)
     sendConnectionClosedMessage(c, reason)
     c:close()
     emu.print("Closing connection: " .. reason)
-    eventHandler.onDisconnected(reason)
+
+    if eventHandler.onDisconnected then
+        eventHandler.onDisconnected(reason)
+    end
 end
 
 function printSeparator()
@@ -161,24 +164,29 @@ function showMessageMessageHandler(c)
     end
 end
 
-function acceptNewJobMessageHandler(c)
-    local jobCount = readMessage(c, ">i")
+function evaluateNetworkMessageHandler(c)
+    local networkCount = readMessage(c, ">i")
     local networks = {}
 
-    for i = 1, jobCount do
-        local generation, species, genome, neuronCount, linkCount = readMessage(c, ">iiiii")
-        local network = neural.createNetworkDefinition(generation, species, genome, neuronCount)
+    for i = 1, networkCount do
+        local id,
+        description,
+        neuronCount,
+        inputCount,
+        outputCount,
+        linkCount = readMessage(c, ">lsiiii")
+
+        local network = neural.createNetworkDescription(id, description, neuronCount, inputCount, outputCount)
 
         for j = 1, linkCount do
             local from, to, weight = readMessage(c, ">iif")
-            local link = neural.createLinkDefinition(from, to, weight)
-            table.insert(network.links, link)
+            network:addLink(from, to, weight)
         end
 
-        table.insert(networks, network)
+        networks[i] = network
     end
 
-    eventHandler.onNewJobAdded(networks)
+    eventHandler.onNewNetworksAdded(networks)
 end
 
 function connectionClosedMessageHandler(c)
@@ -226,6 +234,8 @@ packetTable =
 
     [sendMemoryDump] = 0x02,
 
+    [0x03] = evaluateNetworkMessageHandler,
+
     [0xfc] = connectionClosedMessageHandler,
     [sendConnectionClosedMessage] = 0xfc,
 
@@ -240,6 +250,7 @@ packetNames =
     [0x00] = "Set Settings",
     [0x01] = "Show message",
     [0x02] = "Send memory dump",
+    [0x03] = "Evaluate network",
     [0xfc] = "Connection closed",
     [0xfd] = "Ping",
     [0xfe] = "Handshake"
@@ -319,10 +330,10 @@ function handlePacket(c, packetHeader)
 end
 
 function runForTime(time, func)
-    local evaluateUntill = getTimeMilis() + time
+    local evaluateUntill = getTimeMillis() + time
     local runOnce = false
 
-    while not runOnce or getTimeMilis() < evaluateUntill do
+    while not runOnce or getTimeMillis() < evaluateUntill do
         func()
         runOnce = true
     end

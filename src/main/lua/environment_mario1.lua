@@ -121,7 +121,7 @@ function getTotalFitness(currentFrame)
     local framesPenalty = 0
 
     if isPlayerDead() then
-        framesPenalty = getEstimatedTimeoutFramesLeft()
+        framesPenalty = getEstimatedTimeoutFramesLeft(currentFrame)
 
         if framesPenalty < 0 then
             framesPenalty = 0
@@ -142,7 +142,7 @@ end
 env.name = "Mario"
 env.game = "Super Mario Bros 1"
 env.version = "1.0.0"
-env.neuralInputCount = (BoxRadius * 2 + 1) * (BoxRadius * 2 + 1)
+env.neuralInputCount = (viewportRadius * 2 + 1) * (viewportRadius * 2 + 1)
 env.neuralOutputCount = 6
 
 function env.getInputs()
