@@ -59,7 +59,7 @@ function logic.simulateFrame()
 
         gui.text(16, 16, state.fitness)
 
-        if state.isRunFinished then
+        if state.isFinished then
             onEvaluationFinished(state)
         else
             local inputs = environment.getInputs()
