@@ -8,16 +8,15 @@ local client = require("client")
 local logic = require("logic")
 local mario = require("environment_mario1")
 
-logic.setEnvironment(mario)
-
 local logicHandlers = {
     -- TODO: link logic to client
 }
 
 local netClientHandlers = {
-    -- TODO: link client to logic
+    onNewJobAdded = logic.addNetworks
 }
 
+logic.setEnvironment(mario)
 logic.setCallbackHandlers(logicHandlers)
 client.setCallbackHandlers(netClientHandlers)
 

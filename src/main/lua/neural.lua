@@ -45,7 +45,7 @@ function neural.createNeuron(value)
     return neuron
 end
 
-function neural.createNetwork(inputCount, outputCount, networkInfo)
+function neural.createNetwork(networkInfo)
     local network = {}
 
     network.bias = createNeuron(1)

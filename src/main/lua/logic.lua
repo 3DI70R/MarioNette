@@ -5,39 +5,60 @@
 ---
 
 local neural = require("neural")
+local environment = require("environment_mario1")
 
-local environment = {}
+local logic = {}
 
-function setEnvironment(newEnvironment)
-    environment = newEnvironment
-end
+local emptyEventHandler = {
+    onProgressUpdate = function() end;
+}
 
-function onNewJobAdded(networks)
+local eventHandler = emptyEventHandler
+local pendingNetworkList = {}
+local networkEvaluationResults = {}
+local network = nil
+local frameCounter = 0
 
-end
-
-function onSimulationFinished()
-    environment.onNewSimulation()
-end
-
-function simulateFrame()
-
-    environment.onNewFrame()
-
-    local state = environment.getEvaluationState()
-
-    if state.isFinished then
-        onSimulationFinished()
-    else
-        local network = {} -- TODO: actual network
-        local inputs = environment.getInputs()
-
-        network:setInputs(inputs)
-        neural.evaluateNetwork(network)
-        local outputs = network:getOutputs()
-
-        environment.mapOutputs(outputs)
-
-        emu.frameadvance()
+function logic.addNetworks(networks)
+    for i, n in pairs(networks) do
+        table.insert(pendingNetworkList, n)
     end
 end
+
+function switchToNextNetwork()
+    if #pendingNetworkList > 0 then
+        local networkDefinition = pendingNetworkList[1]
+        table.remove(pendingNetworkList, 1)
+        network = neural.createNetwork(networkDefinition)
+    end
+end
+
+function storeEvaluationResult(result)
+    table.insert(networkEvaluationResults, result)
+end
+
+function onEvaluationFinished()
+
+end
+
+function logic.simulateFrame()
+
+    if network then
+        environment.onNewFrame(frameCounter)
+        local state = environment.getEvaluationState(frameCounter)
+
+        if state.isRunFinished then
+            onEvaluationFinished(state)
+        else
+            local inputs = environment.getInputs()
+            local outputs = network:evaluate(inputs)
+
+            environment.mapOutputs(outputs)
+        end
+    end
+
+    emu.frameadvance()
+
+end
+
+return logic

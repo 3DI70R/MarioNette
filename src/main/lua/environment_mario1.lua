@@ -201,14 +201,14 @@ function env.onNewFrame(frame)
     updateRunState()
 end
 
-function env.getSimulationResult(currentFrame)
+function env.getEvaluationState(currentFrame)
     local result = {}
 
     result.playerX = marioX
     result.playerY = marioY
 
     result.fitness = getTotalFitness(currentFrame)
-    result.isRunFinished = isRunFinished(currentFrame)
+    result.isFinished = isRunFinished(currentFrame)
 
     return result
 end
