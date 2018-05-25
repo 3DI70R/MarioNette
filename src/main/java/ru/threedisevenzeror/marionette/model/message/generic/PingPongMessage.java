@@ -1,15 +1,13 @@
-package ru.threedisevenzeror.marionette.model.packets.generic;
+package ru.threedisevenzeror.marionette.model.message.generic;
 
-import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.KryoSerializable;
-import com.esotericsoftware.kryo.io.Input;
-import com.esotericsoftware.kryo.io.Output;
+import io.netty.buffer.ByteBuf;
+import ru.threedisevenzeror.marionette.model.message.NetworkObject;
 
 /**
  * Ping packet
  * Sended to channel to receive response and ensure that client is reachable
  */
-public class PingPongMessage implements KryoSerializable {
+public class PingPongMessage implements NetworkObject {
 
     /**
      * Flag indicating that client which receives this packet should send
@@ -17,21 +15,18 @@ public class PingPongMessage implements KryoSerializable {
      */
     public boolean isPingPacket;
 
-    public PingPongMessage() {
-        // for kryo
-    }
-
+    public PingPongMessage() {}
     public PingPongMessage(boolean isPingPacket) {
         this.isPingPacket = isPingPacket;
     }
 
     @Override
-    public void write(Kryo kryo, Output output) {
+    public void write(ByteBuf output) {
         output.writeBoolean(isPingPacket);
     }
 
     @Override
-    public void read(Kryo kryo, Input input) {
+    public void read(ByteBuf input) {
         isPingPacket = input.readBoolean();
     }
 }

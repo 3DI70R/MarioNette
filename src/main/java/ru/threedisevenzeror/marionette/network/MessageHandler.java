@@ -4,9 +4,9 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.timeout.IdleStateEvent;
-import ru.threedisevenzeror.marionette.model.packets.generic.ClientInfoMessage;
-import ru.threedisevenzeror.marionette.model.packets.generic.ConnectionClosedMessage;
-import ru.threedisevenzeror.marionette.model.packets.generic.PingPongMessage;
+import ru.threedisevenzeror.marionette.model.message.generic.ClientInfoMessage;
+import ru.threedisevenzeror.marionette.model.message.generic.ConnectionClosedMessage;
+import ru.threedisevenzeror.marionette.model.message.generic.PingPongMessage;
 
 import java.util.HashMap;
 import java.util.Map;

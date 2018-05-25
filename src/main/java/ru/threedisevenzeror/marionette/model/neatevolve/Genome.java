@@ -1,20 +1,25 @@
 package ru.threedisevenzeror.marionette.model.neatevolve;
 
-import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.KryoSerializable;
-import com.esotericsoftware.kryo.io.Input;
-import com.esotericsoftware.kryo.io.Output;
+import io.netty.buffer.ByteBuf;
+import ru.threedisevenzeror.marionette.model.message.NetworkObject;
 import ru.threedisevenzeror.marionette.utils.StreamUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class NeuralNetworkDefinition implements KryoSerializable {
+public class Genome implements NetworkObject {
 
     public static class Link {
+
         public int from;
         public int to;
         public float weight;
+
+        public Link(int from, int to, float weight) {
+            this.from = from;
+            this.to = to;
+            this.weight = weight;
+        }
     }
 
     public long id;
@@ -25,7 +30,7 @@ public class NeuralNetworkDefinition implements KryoSerializable {
     public List<Link> links = new ArrayList<>();
 
     @Override
-    public void write(Kryo kryo, Output output) {
+    public void write(ByteBuf output) {
         output.writeLong(id);
         StreamUtils.writeNullTerminatedString(output, description);
         output.writeInt(neuronCount);
@@ -41,7 +46,7 @@ public class NeuralNetworkDefinition implements KryoSerializable {
     }
 
     @Override
-    public void read(Kryo kryo, Input input) {
+    public void read(ByteBuf input) {
         id = input.readLong();
         description = StreamUtils.readNullTerminatedString(input);
         neuronCount = input.readInt();
@@ -52,10 +57,9 @@ public class NeuralNetworkDefinition implements KryoSerializable {
         links = new ArrayList<>();
 
         for(int i = 0; i < linkCount; i++) {
-            Link l = new Link();
-            l.from = input.readInt();
-            l.to = input.readInt();
-            l.weight = input.readFloat();
+            links.add(new Link(input.readInt(),
+                    input.readInt(),
+                    input.readFloat()));
         }
     }
 }

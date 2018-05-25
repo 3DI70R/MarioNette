@@ -13,6 +13,8 @@ local netClientHandlers = {
     onFrameSimulation = logic.simulateFrame;
 }
 
+logic.event.onNetworkEvaluated = client.sendEvaluationResult
+
 logic.setEnvironment(mario)
 client.setCallbackHandlers(netClientHandlers)
 

@@ -6,6 +6,8 @@ local client = {}
 
 --- Forward definition of module's locals
 
+local connection
+
 local readMessage,
 beginMessage,
 writeMessage,
@@ -20,8 +22,7 @@ connectionClosedMessageHandler
 
 local sendPingPongMessage,
 sendConnectionClosedMessage,
-sendClientParamsMessage,
-sendMemoryDump
+sendClientParamsMessage
 
 local packetTable,
 packetNames
@@ -41,9 +42,9 @@ local emptyHandler = {
 --- Default settings -------------------
 
 local socketTimeout = 1000
-local emulationEvaluationPeriod = 500
-local emulationSpeed = "normal"
-local debuggingInfo = true
+local emulationEvaluationPeriod = 50
+local emulationSpeed = "nothrottle"
+local debuggingInfo = false
 local eventHandler = emptyHandler
 
 --- Messaging utils ---------------------------
@@ -53,21 +54,16 @@ local currentMessageBuffer = {}
 local connectionMimic = {} -- hacky way to disguise input connection as string
                            -- So struct packing library can work with connection
 
-function connectionMimic.setConnection(self, c)
-    self.c = c
-end
-
 function connectionMimic.len(self)
     return 1000000000
 end
 
 function connectionMimic.sub(self, from, to)
     local len = to - from + 1
-    return self.c:receive(len)
+    return connection:receive(len)
 end
 
-function readMessage(c, format)
-    connectionMimic:setConnection(c)
+function readMessage(format)
     return struct.unpack(format, connectionMimic)
 end
 
@@ -83,7 +79,7 @@ function writeRawMessage(value)
     table.insert(currentMessageBuffer, value)
 end
 
-function sendMessage(c)
+function sendMessage()
     local resultMessage = table.concat(currentMessageBuffer)
     local messageSize = resultMessage:len() + 1
     local lengthPrefix = struct.pack(">iB",
@@ -97,14 +93,14 @@ function sendMessage(c)
         emu.print("Sent message [0x" .. hexId .. ", " .. name .. "] with size " .. messageSize)
     end
 
-    c:send(lengthPrefix)
-    c:send(resultMessage)
+    connection:send(lengthPrefix)
+    connection:send(resultMessage)
     currentMessageBuffer = {}
 end
 
-function client.closeConnection(c, reason)
-    sendConnectionClosedMessage(c, reason)
-    c:close()
+function client.closeConnection(reason)
+    sendConnectionClosedMessage(reason)
+    connection:close()
     emu.print("Closing connection: " .. reason)
 
     if eventHandler.onDisconnected then
@@ -118,19 +114,19 @@ end
 
 --- Input message handlers -------------
 
-function pingPongMessageHandler(c)
-    local sendPong = readMessage(c, "b")
+function pingPongMessageHandler()
+    local sendPong = readMessage("b")
 
     if sendPong then
-        sendPingPongMessage(c)
+        sendPingPongMessage()
     end
 end
 
-function setSettingsMessageHandler(c)
+function setSettingsMessageHandler()
     local emulationSpeedData,
     socketTimeoutData,
     emulationEvaluationPeriodData,
-    debuggingInfoData = readMessage(c, ">biib")
+    debuggingInfoData = readMessage(">biib")
 
     if emulationSpeedData == 1 then
         emulationSpeed = "nothrottle"
@@ -155,8 +151,8 @@ function setSettingsMessageHandler(c)
     emu.speedmode(emulationSpeed)
 end
 
-function showMessageMessageHandler(c)
-    local message, duration = readMessage(c, ">si")
+function showMessageMessageHandler()
+    local message, duration = readMessage(">si")
     emu.message(message)
 
     if debuggingInfo then
@@ -164,8 +160,8 @@ function showMessageMessageHandler(c)
     end
 end
 
-function evaluateNetworkMessageHandler(c)
-    local networkCount = readMessage(c, ">i")
+function evaluateNetworkMessageHandler()
+    local networkCount = readMessage(">i")
     local networks = {}
 
     for i = 1, networkCount do
@@ -174,12 +170,12 @@ function evaluateNetworkMessageHandler(c)
         neuronCount,
         inputCount,
         outputCount,
-        linkCount = readMessage(c, ">lsiiii")
+        linkCount = readMessage(">lsiiii")
 
         local network = neural.createNetworkDescription(id, description, neuronCount, inputCount, outputCount)
 
         for j = 1, linkCount do
-            local from, to, weight = readMessage(c, ">iif")
+            local from, to, weight = readMessage(">iif")
             network:addLink(from, to, weight)
         end
 
@@ -189,40 +185,46 @@ function evaluateNetworkMessageHandler(c)
     eventHandler.onNewNetworksAdded(networks)
 end
 
-function connectionClosedMessageHandler(c)
-    local reason = readMessage(c, ">s")
-    client.closeConnection(c, reason)
+function connectionClosedMessageHandler()
+    local reason = readMessage(">s")
+    client.closeConnection(reason)
     eventHandler.onDisconnected(reason)
 end
 
 --- Message senders -------------------
 
-function sendPingPongMessage(c)
+function sendPingPongMessage()
     beginMessage(sendPingPongMessage)
     writeMessage("b", 0)
-    sendMessage(c)
+    sendMessage()
 end
 
-function sendConnectionClosedMessage(c, reason)
+function sendConnectionClosedMessage(reason)
     beginMessage(sendConnectionClosedMessage)
     writeMessage(">s", reason)
-    sendMessage(c)
+    sendMessage()
 end
 
-function sendClientParamsMessage(c)
+function sendClientParamsMessage()
     beginMessage(sendClientParamsMessage)
     writeMessage(">sss",
             "prototype", -- protocol version
             "FCEUX client", -- client name
             "fceux" -- client type
     )
-    sendMessage(c)
+    sendMessage()
 end
 
-function sendMemoryDump(c)
-    beginMessage(sendMemoryDump)
+function client.sendMemoryDump()
+    beginMessage(client.sendMemoryDump)
     writeRawMessage(memory.readbyterange(0, 0x800))
-    sendMessage(c)
+    sendMessage()
+end
+
+function client.sendEvaluationResult(id, fitness)
+    beginMessage(client.sendEvaluationResult)
+    writeMessage(">lf", id, fitness)
+    sendMessage()
 end
 
 --- Packet -> Handler mapping ----------
@@ -230,11 +232,14 @@ end
 packetTable =
 {
     [0x00] = setSettingsMessageHandler,
+
     [0x01] = showMessageMessageHandler,
 
-    [sendMemoryDump] = 0x02,
+    [client.sendMemoryDump] = 0x02,
 
     [0x03] = evaluateNetworkMessageHandler,
+
+    [client.sendEvaluationResult] = 0x04,
 
     [0xfc] = connectionClosedMessageHandler,
     [sendConnectionClosedMessage] = 0xfc,
@@ -251,6 +256,7 @@ packetNames =
     [0x01] = "Show message",
     [0x02] = "Send memory dump",
     [0x03] = "Evaluate network",
+    [0x04] = "Evaluation result",
     [0xfc] = "Connection closed",
     [0xfd] = "Ping",
     [0xfe] = "Handshake"
@@ -267,25 +273,24 @@ function client.setCallbackHandlers(handler)
 end
 
 function client.startNetworkConnectionLoop(host, port)
-
     while true do
         printSeparator()
 
         local addr = host .. ":" .. port
         emu.print("Trying to establish connection with " .. addr .. "...")
 
-        local connection = socket.connect(host, port)
+        connection = socket.connect(host, port)
 
         if connection then
 
             emu.print("Successfully connected to: " .. addr)
 
             emu.registerexit(function()
-                client.closeConnection(connection, "Script evaluation on emulator was stopped")
+                client.closeConnection("Script evaluation on emulator was stopped")
             end)
 
-            sendClientParamsMessage(connection)
-            startNetworkPacketHandlerLoop(connection)
+            sendClientParamsMessage()
+            startNetworkPacketHandlerLoop()
         else
             emu.print("Cannot establish connection to " .. host .. ":" .. port .. ", retrying in 10 seconds...")
             runForTime(10000, emu.frameadvance)
@@ -293,13 +298,13 @@ function client.startNetworkConnectionLoop(host, port)
     end
 end
 
-function startNetworkPacketHandlerLoop(c)
+function startNetworkPacketHandlerLoop()
     while true do
-        c:settimeout(0)
-        local packetHeader, error = c:receive(5)
+        connection:settimeout(0)
+        local packetHeader, error = connection:receive(5)
 
         if packetHeader then
-            handlePacket(c, packetHeader)
+            handlePacket(packetHeader)
         else
             if error == "closed" then
                 break
@@ -310,7 +315,7 @@ function startNetworkPacketHandlerLoop(c)
     end
 end
 
-function handlePacket(c, packetHeader)
+function handlePacket(packetHeader)
     local packetSize, packetType = struct.unpack(">iB", packetHeader)
     local handler = packetTable[packetType]
 
@@ -322,10 +327,10 @@ function handlePacket(c, packetHeader)
     end
 
     if handler then
-        c:settimeout(socketTimeout)
-        handler(c)
+        connection:settimeout(socketTimeout)
+        handler()
     else
-        client.closeConnection(c, "Unknown message received (" .. packetType .. ")")
+        client.closeConnection("Unknown message received (" .. packetType .. ")")
     end
 end
 

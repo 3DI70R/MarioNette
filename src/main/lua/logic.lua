@@ -7,12 +7,19 @@
 local neural = require("neural")
 
 local logic = {}
+logic.event = {}
 
+local eventHandler = {}
 local pendingNetworkList = {}
 local networkEvaluationResults = {}
 local network
 local frameCounter = 0
 local environment
+local saveSlot = savestate.create(2)
+
+function logic.event.onNetworkEvaluated(id, fitness)
+
+end
 
 function logic.addNetworks(networks)
     for i, n in pairs(networks) do
@@ -22,6 +29,10 @@ function logic.addNetworks(networks)
     if network == nil then
         switchToNextNetwork()
     end
+end
+
+function logic.setEventHandler(handler)
+    eventHandler = handler
 end
 
 function logic.setEnvironment(env)
@@ -34,6 +45,8 @@ function switchToNextNetwork()
         table.remove(pendingNetworkList, 1)
         network = neural.createNetwork(networkDefinition)
         onEvaluationStarted()
+    else
+        network = nil
     end
 end
 
@@ -42,12 +55,15 @@ function storeEvaluationResult(result)
 end
 
 function onEvaluationStarted()
+    savestate.load(saveSlot)
     environment.onSimulationReset()
     frameCounter = 0
+    outputs = { 0, 0, 0, 0, 0, 0 }
 end
 
-function onEvaluationFinished()
-    onEvaluationStarted()
+function onEvaluationFinished(state)
+    logic.event.onNetworkEvaluated(network.id, state.fitness)
+    switchToNextNetwork()
 end
 
 function logic.simulateFrame()
@@ -62,8 +78,10 @@ function logic.simulateFrame()
         if state.isFinished then
             onEvaluationFinished(state)
         else
-            local inputs = environment.getInputs()
-            local outputs = network:evaluate(inputs)
+            if frameCounter % 5 == 0 then
+                local inputs = environment.getInputs()
+                outputs = network:evaluate(inputs)
+            end
 
             environment.mapOutputs(outputs)
         end

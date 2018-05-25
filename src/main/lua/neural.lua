@@ -49,11 +49,11 @@ local function createNeuron(value)
     function neuron.update(self)
         local valueSum = 0
 
-        for l in ipairs(self.links) do
+        for i, l in ipairs(self.links) do
             valueSum = valueSum + l.weight * l.neuron.value
         end
 
-        n.value = self.activation(valueSum)
+        self.value = self.activation(valueSum)
     end
 
     return neuron
@@ -86,22 +86,23 @@ function neural.createNetwork(networkInfo)
         network.inputs[i] = inputNeuron
     end
 
-    local outputStartIndex = #network.neurons - networkInfo.outputCount - 1
+    local outputStartIndex = #network.neurons - networkInfo.outputCount
     for i = 1, networkInfo.outputCount do
         local outputNeuron = network.neurons[outputStartIndex + i]
         outputNeuron.type = "output"
         network.outputs[i] = outputNeuron
     end
 
-    local biasIndex = networkInfo.inputCount + 1
+    local biasIndex = networkInfo.inputCount
     local bias = network.neurons[biasIndex]
     bias.value = 1
     bias.type = "bias"
     network.bias = bias
 
     for i, link in pairs(networkInfo.links) do
-        local from = network.neurons[link.from]
-        local to = network.neurons[link.to]
+        local from = network.neurons[link.from + 1]
+        local to = network.neurons[link.to + 1]
+
         from:linkTo(to, link.weight)
     end
 
@@ -128,7 +129,7 @@ function neural.createNetwork(networkInfo)
             self.inputs[i].value = inputs[i]
         end
 
-        for i, n in ipairs(network.updateQueue) do
+        for i, n in ipairs(self.updateQueue) do
             n:update()
         end
 

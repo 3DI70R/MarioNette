@@ -1,15 +1,13 @@
-package ru.threedisevenzeror.marionette.model.packets.fceux;
+package ru.threedisevenzeror.marionette.model.message.fceux;
 
-import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.KryoSerializable;
-import com.esotericsoftware.kryo.io.Input;
-import com.esotericsoftware.kryo.io.Output;
+import io.netty.buffer.ByteBuf;
 import ru.threedisevenzeror.marionette.model.fceux.FceuxEmulationSpeed;
+import ru.threedisevenzeror.marionette.model.message.NetworkObject;
 
 /**
  * Message with settings configuration for FCEUX
  */
-public class FceuxSetSettingsMessage implements KryoSerializable {
+public class FceuxSetSettingsMessage implements NetworkObject {
 
     /**
      * Emulation speed
@@ -32,7 +30,7 @@ public class FceuxSetSettingsMessage implements KryoSerializable {
     public boolean showDebuggingInfo;
 
     @Override
-    public void write(Kryo kryo, Output output) {
+    public void write(ByteBuf output) {
         switch (emulationSpeed) {
             case Normal: output.writeByte(0); break;
             case Nothrottle: output.writeByte(1); break;
@@ -45,7 +43,7 @@ public class FceuxSetSettingsMessage implements KryoSerializable {
     }
 
     @Override
-    public void read(Kryo kryo, Input input) {
+    public void read(ByteBuf input) {
         switch (input.readByte()) {
             case 0: emulationSpeed = FceuxEmulationSpeed.Normal; break;
             case 1: emulationSpeed = FceuxEmulationSpeed.Nothrottle; break;

@@ -14,5 +14,5 @@ repositories {
 dependencies {
     testCompile group: 'junit', name: 'junit', version: '4.12'
     compile 'io.netty:netty-all:4.1.24.Final'
-    compile 'com.esotericsoftware:kryo:4.0.2'
+    compile 'org.encog:encog-core:3.4'
 }

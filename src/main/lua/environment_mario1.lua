@@ -173,8 +173,8 @@ function env.mapOutputs(outputs)
     input["right"] = outputs[2] > 0
     input["up"] = outputs[3] > 0
     input["down"] = outputs[4] > 0
-    input["a"] = outputs[5] > 0
-    input["b"] = outputs[6] > 0
+    input["A"] = outputs[5] > 0
+    input["B"] = outputs[6] > 0
     input["select"] = false
     input["start"] = false
 
